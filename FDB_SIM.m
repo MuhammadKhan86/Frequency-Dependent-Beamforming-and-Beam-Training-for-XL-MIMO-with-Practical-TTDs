@@ -1,12 +1,12 @@
-function FDB_Beam_Pattern_3Db
+function FDB_SIM
 
 close all; clear all; clc;
 
 %%% parameters
 params.centralFreq      = 100e9;                                              centralFreq    = params.centralFreq;
 params.sampFreq         = 10e9;                                            sampFreq       = params.sampFreq;
-params.nTx              = 16;                                               nTx            = params.nTx;
-params.nTTD             = 512;                                              nTTD           = params.nTTD;
+params.nTx              = 128;                                               nTx            = params.nTx;
+params.nTTD             = nTx;                                              nTTD           = params.nTTD;
 params.waveLength       = physconst('LightSpeed')/centralFreq ;             waveLength     = params.waveLength;
 params.antElemSpacing   = 1/2 * waveLength;                                 antElemSpacing = params.antElemSpacing;
 params.maxBeamAngle     =  60;                                              maxBeamAngle   = params.maxBeamAngle;
@@ -15,21 +15,34 @@ params.minBeamAngle     = -60;                                              minB
 params.antArraySize     = nTx*antElemSpacing;
 
 %%% TTD params
-ttdTimeDelayRange = 15e-9;%ttdTimeDelayRange = 1.28e-9;
+ttdTimeDelayRange = 15e-9;
 ttdTimeDelayRes   = 3e-12;
-%ttdTimeDelayRes   = 0.5e-12; 
 
+%%% for random nmbers
+% rng(1)
+% nSamples = 10000;
+% chanDirectionVec = (minBeamAngle + (maxBeamAngle-minBeamAngle).*rand(nSamples,1)).';
+
+% nCarr            = 33;
 beamDirection    = 30;
 chanDirectionVec = -60:0.01:60;
+% load('optCodebook.MAT')
 
-
+% for locIdx = 1:length(chanDirectionVec)
+%   [~, optBeamIdx(locIdx)] = min(abs(optCodebookAngles-chanDirectionVec(locIdx)));
+% end
 
 %%% Subcarrier Frequencies
 nCarr           = ceil((1/(sqrt(3)*2*pi/nTx)*2*pi*(1 - (sampFreq.^2/(4*centralFreq.^2)) ) * (sind(maxBeamAngle) - sind(minBeamAngle))) + 1);
-nCarr           = ceil((1/(1.782/nTx)* (sind(maxBeamAngle) - sind(minBeamAngle))) + 1);
+nCarr           = ceil((1/(sqrt(3)*2*pi/nTx)*2*pi * (sind(maxBeamAngle) - sind(minBeamAngle))) + 1);
 
+% nCarr           = ceil(120/(2*asind(0.891*0.5/nTx)))
+% nCarr           = ceil(120/(3*asind(2/pi * sqrt(6*(1-0.5) / (nTx.^2-1) ))))
 fCarrAll        = (centralFreq + sampFreq / (nCarr-1) .* ((0:nCarr-1)-(nCarr - 1) / 2));
 centralFreqRep  = repelem(centralFreq,1,nCarr);
+
+
+%%%% Frequency Dependent Beam Generation
 
 timeDelayIdeal  = 0.5/(centralFreq*sampFreq) * (fCarrAll(1)*sind(minBeamAngle) - fCarrAll(end)*sind(maxBeamAngle));
 fixedAngle      = asind(0.5/centralFreq * ((centralFreq - sampFreq/2)*sind(minBeamAngle) + (centralFreq + sampFreq/2)*sind(maxBeamAngle)));
@@ -38,9 +51,6 @@ optCodebookAngles = asind((2*centralFreqRep.*(centralFreqRep-fCarrAll)*timeDelay
 for locIdx = 1:length(chanDirectionVec)
   [~, optBeamIdx(locIdx)] = min(abs(optCodebookAngles-chanDirectionVec(locIdx)));
 end
-
-
-%%%% Frequency Dependent Beam Generation
 
 %%% PDPP
 timeDelayVecIdealPDPP         = timeDelayIdeal * (0:nTx-1);
@@ -133,7 +143,7 @@ txPrecoderRangeResMSDPP     = 1/sqrt(nTx) * exp(-1j*2*pi*antElemSpacing/waveLeng
 
 
 %%% Channel and Array Gain
-for chanIdx = 1:size(chanDirectionVec,2)
+parfor chanIdx = 1:size(chanDirectionVec,2)
   chanDirection = chanDirectionVec(chanIdx);
 
   chanArrayRespFD = 1/sqrt(nTx) * exp(-1j*2*pi * fCarrAll/centralFreq *           antElemSpacing/waveLength * sind(chanDirection) .* (0:nTx-1).');
@@ -160,41 +170,70 @@ for chanIdx = 1:size(chanDirectionVec,2)
   arrayGainRangeResConsMSDPP(chanIdx,:)   = diag(chanArrayRespFD' * txPrecoderRangeResMSDPP);
 end
 
-%%% For Tikz
-if 0
-figureData = [sind(chanDirectionVec.'), 20*log10(abs(arrayGainIdealPDPP))];
-save('Figure_BeamPattern_3dB.txt', 'figureData', '-ascii');
-end
-
-
-
-fontSize = 7;
-yLimit = [-21 0];
-xLimit = [-sind(90) sind(90)];
-xTicks = [-0.8:0.2:0.8];
+IEEE_FIG(fontSize, 5, 6.3)
+yLimit = [-21 0.5];
+xLimit = [0 0.9];
+xTicks = [0:0.1:0.9];
 yTicks = [min(yLimit):3:max(yLimit)];
-IEEE_FIG(fontSize, 6, 9)
-
+% markerIndices = [1 length(ttDTimeDelayRangeVec)/10:length(ttDTimeDelayRangeVec)/10:length(ttDTimeDelayRangeVec)];
 figure(1);
 ax0 =axes; 
-a = plot(sind(chanDirectionVec), 20*log10(abs(arrayGainIdealPDPP)), LineWidth=1);  hold on;
+a = plot(sind(chanDirectionVec), 20*log10(abs(arrayGainIdealPDPP(:,[1,32:32:end]))), Color=[0 0 0], LineStyle=":", LineWidth=1);  hold on;
+b = plot(sind(chanDirectionVec), 20*log10(abs(arrayGainRangeResConsPDPP(:,[1,32:32:end]))),  LineStyle="-", LineWidth=1);  hold on;
 
 ax0.YLim  = yLimit;
 ax0.XLim  = xLimit;
 ax0.YTick = yTicks;
 ax0.XTick = xTicks;
 grid on;
-xlabel(ax0, 'Beam angle (sin \theta)','FontSize',fontSize);
-ylabel(ax0, 'Beamforming gain (g(\theta, f_{k}))',  'fontsize', fontSize, 'FontName', 'times')
 
-ax=gca;
-% exportgraphics(ax,'Results\BaemPattern_3Db.pdf','Resolution',1600, 'ContentType', 'vector')
-% exportgraphics(ax,'Results\BaemPattern_3Db.png','Resolution',1600, 'ContentType', 'vector')
-% exportgraphics(ax,'Results\BaemPattern_3Db.eps','Resolution',1600, 'ContentType', 'vector')
+figure(2);
+ax1 =axes; 
+a = plot(sind(chanDirectionVec), 20*log10(abs(arrayGainIdealPDPP(:,[1,32:32:end]))), Color=[0 0 0], LineStyle=":", LineWidth=1);  hold on;
+b = plot(sind(chanDirectionVec), 20*log10(abs(arrayGainRangeResConsCDPP(:,[1,32:32:end]))),  LineStyle="-", LineWidth=1);  hold on;
 
-%%%% Export Figures for Tikz (label ands Axis to be added in tikz)
-% axis off
-% set(gca, 'Position', [0 0 1 0.999])
-% exportgraphics(gca,'Beam_Pattern_3dB.pdf','Resolution',2400, 'ContentType', 'vector', 'BackgroundColor', 'none')
-% exportgraphics(gca,'Beam_Pattern_3dB.eps','Resolution',2400, 'ContentType', 'vector', 'BackgroundColor', 'none')
+ax1.YLim  = yLimit;
+ax1.XLim  = xLimit;
+ax1.YTick = yTicks;
+ax1.XTick = xTicks;
+grid on;
 
+figure(3);
+ax2 =axes; 
+a = plot(sind(chanDirectionVec), 20*log10(abs(arrayGainIdealMSDPP(:,[1,32:32:end]))), Color=[0 0 0], LineStyle=":", LineWidth=1);  hold on;
+b = plot(sind(chanDirectionVec), 20*log10(abs(arrayGainRangeResConsCDPP(:,[1,32:32:end]))),  LineStyle="-", LineWidth=1);  hold on;
+
+ax2.YLim  = yLimit;
+ax2.XLim  = xLimit;
+ax2.YTick = yTicks;
+ax2.XTick = xTicks;
+grid on;
+
+% a.Color     = RGB('Black');
+
+
+figure(1); plot(chanDirectionVec, 20*log10(abs(arrayGainAPS)));
+
+figure(2); plot(chanDirectionVec, 20*log10(abs(arrayGainIdealPDPP)),  "LineStyle", "-");  hold on;
+figure(2); plot(chanDirectionVec, 20*log10(abs(arrayGainIdealCDPP)),  "LineStyle", "--"); hold on;
+figure(2); plot(chanDirectionVec, 20*log10(abs(arrayGainIdealMSDPP)), "LineStyle", ":");  hold on;
+
+figure(3); plot(chanDirectionVec, 20*log10(abs(arrayGainRangeConsPDPP)),  "LineStyle", "-");  hold on;
+figure(3); plot(chanDirectionVec, 20*log10(abs(arrayGainRangeConsCDPP)),  "LineStyle", "--"); hold on;
+figure(3); plot(chanDirectionVec, 20*log10(abs(arrayGainRangeConsMSDPP)), "LineStyle", ":");  hold on;
+
+figure(4); plot(chanDirectionVec, 20*log10(abs(arrayGainResConsPDPP)),  "LineStyle", "-");  hold on;
+figure(4); plot(chanDirectionVec, 20*log10(abs(arrayGainResConsCDPP)),  "LineStyle", "--"); hold on;
+figure(4); plot(chanDirectionVec, 20*log10(abs(arrayGainResConsMSDPP)), "LineStyle", ":");  hold on;
+
+figure(5); plot(chanDirectionVec, 20*log10(abs(arrayGainIdealPDPP(:,[1,32:32:end]))),  "LineStyle", "--", Color=[0 0 0]);  hold on;
+figure(5); plot(chanDirectionVec, 20*log10(abs(arrayGainRangeResConsPDPP(:,[1,32:32:end]))),  "LineStyle", "-");  hold on;
+figure(5); plot(chanDirectionVec, 20*log10(abs(arrayGainRangeResConsCDPP(:,[1,32:32:end]))),  "LineStyle", "-"); hold on;
+figure(5); plot(chanDirectionVec, 20*log10(abs(arrayGainRangeResConsMSDPP(:,[1,32:32:end]))), "LineStyle", ":");  hold on;
+
+
+figure(10); 
+a = polarpattern(chanDirectionVec, 20*log10(abs(arrayGainIdealPDPP(:,[1,32:32:end]))));hold on
+
+b = polarpattern(chanDirectionVec, 20*log10(abs(arrayGainIdealPDPP(:,[1,32:32:end]))));
+aa=1

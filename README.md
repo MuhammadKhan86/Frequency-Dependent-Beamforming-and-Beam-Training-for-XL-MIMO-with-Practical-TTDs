@@ -1,5 +1,5 @@
-# Delay-Aware Frequency-Dependent Beamforming for Extremely Large Antenna Arrays
-This folder includes dataset and codes for "Delay-Aware Frequency-Dependent Beamforming for Extremely Large Antenna Arrays" The folder is free to use, including simulation result reproduction, and improvement, etc.
+# Frequency-Dependent Beamforming and Beam Training for XL-MIMO with Practical TTDs
+This folder includes dataset and codes for "Frequency-Dependent Beamforming and Beam Training for XL-MIMO with Practical TTDs" The folder is free to use, including simulation result reproduction, and improvement, etc.
 
 # Requirements
 This code requires Matlab 2022b or above.
